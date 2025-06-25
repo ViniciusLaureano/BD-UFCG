@@ -1,0 +1,210 @@
+--------------------------------------------------
+
+QUESTÃO 1
+
+-- criando tabela de tarefas
+CREATE TABLE tarefas (
+  id integer,
+  descricao TEXT,
+  cpf varchar(11),
+  prioridade smallint,
+  status char(1)
+);
+
+COMANDOS 1
+- Funcionaram como esperado, as que deveriam ser inseridas foram executaram, 
+já as que não deveriam funcionar, não foram inseridas.
+
+--------------------------------------------------
+
+QUESTÃO 2
+
+COMANDOS 2
+- Inserção falhou por tentar inserir um valor de `id` fora do range suportado para `integer`.
+- Necessário alterar a coluna `id` para `bigint`.
+
+ALTER TABLE tarefas ALTER COLUMN id TYPE BIGINT;
+
+- Após alteração, INSERT funcionou como esperado.
+
+--------------------------------------------------
+
+QUESTÃO 3
+
+COMANDOS 3
+- Não foi necessário alteração.
+- As inserções já não são permitidas pois a coluna é `smallint`, tendo como limite superior o valor 32767.
+
+COMANDOS 4
+- INSERTs funcionaram pois estão dentro do valor máximo de um coluna do tipo `smallint`.
+
+--------------------------------------------------
+
+QUESTÃO 4
+
+-- Corrigindo nome das colunas (necessário apenas cpf -> func_resp_cpf) 
+ALTER TABLE tarefas
+RENAME COLUMN cpf TO func_resp_cpf;
+
+-- Deletando valores NULL
+DELETE FROM tarefas
+WHERE id IS NULL
+OR descricao IS NULL
+OR func_resp_cpf IS NULL
+OR prioridade IS NULL
+OR status IS NULL;
+
+-- Bloqueando valores NULL
+ALTER TABLE tarefas
+ALTER COLUMN id SET NOT NULL,
+ALTER COLUMN descricao SET NOT NULL,
+ALTER COLUMN func_resp_cpf SET NOT NULL,
+ALTER COLUMN prioridade SET NOT NULL,
+ALTER COLUMN status SET NOT NULL;
+
+--------------------------------------------------
+
+QUESTÃO 5
+
+- Para permitir o primeiro INSERT e não o segundo em sequência, o banco não pode permitir duplicatas na coluna ID.
+- Para resolver o problema, é necessário adicionar uma constraint de Primary key em ID.
+
+ALTER TABLE tarefas
+ADD CONSTRAINT tarefas_pkey PRIMARY KEY (id);
+
+COMANDOS 5
+O primeiro INSERT executou e o segundo foi bloqueado por questão de duplicação de id, como esperado.
+
+--------------------------------------------------
+
+QUESTÃO 6
+
+A) 
+- Para limitar um campo de texto para uma quantidade exatas de caracteres, basta usar CHAR(11) ao invés de VARCHAR(11),
+pois CHAR exige um tamanho exato de caracteres, enquanto varchar define o tamanho máximo.
+
+ALTER TABLE tarefas
+ALTER COLUMN func_resp_cpf TYPE CHAR(11);
+
+- Porém ainda assim, caso seja inserido algum valor em func_resp_cpf com cadeia menor que 11 caracteres,
+será preenchido com espaços vazios até alcançar os 11 caracteres obrigatórios.
+- EXEMPLO que será aceito indevidamente:
+INSERT INTO tarefas VALUES (1, 'varrer chão', '1234567890', 3, 'A');
+
+- Para contornar isso, criamos uma constraint para verificar o tamanho da dos valores da coluna:
+ALTER TABLE tarefas
+ADD CONSTRAINT func_resp_cpf_length_chk
+CHECK (LENGTH(func_resp_cpf) = 11);
+
+- Com essa atualização, a constraint valida se o tamanho do valor na coluna func_resp_cpf é exatamente 11, bloqueando qualquer outro caso.
+
+B)
+- Primeiro, atualizando os antigos A->P, R->E, F->C:
+UPDATE tarefas SET status = 'P' WHERE status = 'A';
+UPDATE tarefas SET status = 'E' WHERE status = 'R';
+UPDATE tarefas SET status = 'C' WHERE status = 'F';
+
+- Segundo passo, fazer um CHECK validando se o status possui o valor correspondente a 'P', 'E' ou 'C':
+ALTER TABLE tarefas
+ADD CONSTRAINT status_valido_chk
+CHECK (status IN ('P', 'E', 'C'));
+
+--------------------------------------------------
+
+QUESTÃO 7
+
+- Primeiro, ajustando as tuplas com prioridade > 5 para 5:
+UPDATE tarefas SET prioridade = 5 WHERE prioridade > 5;
+
+- Segundo passo, adicionar uma validação para o intervalo de 0 a 5 (que são os possíveis valores):
+ALTER TABLE tarefas
+ADD CONSTRAINT prioridade_valida_chk
+CHECK (prioridade >= 0 AND prioridade <= 5);
+
+--------------------------------------------------
+
+QUESTÃO 8
+
+- Criando Relação:
+
+CREATE TABLE funcionario (
+  cpf char(11) CONSTRAINT funcionario_pkey PRIMARY KEY,
+  data_nasc date NOT NULL,
+  nome varchar(225) NOT NULL,
+  funcao varchar(10) NOT NULL,
+  nivel char(1) NOT NULL,
+  superior_cpf char(11),
+
+  CONSTRAINT superior_fkey
+    FOREIGN KEY (superior_cpf) REFERENCES funcionario(cpf),
+
+  -- Validação da função
+  CONSTRAINT funcao_valida_chk
+    CHECK (funcao IN ('LIMPEZA', 'SUP_LIMPEZA')),
+
+  -- Se funcao = 'LIMPEZA', superior_cpf não pode ser NULL
+  CONSTRAINT superior_presente_chk
+    CHECK (funcao <> 'LIMPEZA' OR superior_cpf IS NOT NULL),
+
+  -- Validação do nível
+  CONSTRAINT nivel_valido_chk
+    CHECK (nivel IN ('J', 'P', 'S'))
+);
+
+- Corrigindo o tamanho da funcao 11 para 15 para funcionar para o SUB_LIMPEZA:
+ALTER TABLE funcionario
+ALTER COLUMN funcao TYPE varchar(15);
+
+- Comandos 6 funcionaram como esperado.
+
+--------------------------------------------------
+
+QUESTÃO 9
+
+- Criando 10 inserts válidos:
+
+-- Supervisores (SUP_LIMPEZA) - sem superior obrigatório
+INSERT INTO funcionario VALUES ('90000000001', '1975-02-01', 'Stoico', 'SUP_LIMPEZA', 'S', NULL);
+INSERT INTO funcionario VALUES ('90000000002', '1980-04-14', 'Valka', 'SUP_LIMPEZA', 'S', NULL);
+INSERT INTO funcionario VALUES ('90000000003', '1988-03-22', 'Bocão', 'SUP_LIMPEZA', 'P', 90000000001);
+INSERT INTO funcionario VALUES ('91205506009', '1999-01-19', 'Irradiante', 'SUP_LIMPEZA', 'J', NULL);
+
+-- Funcionários de LIMPEZA (devem ter supervisor)
+INSERT INTO funcionario VALUES ('90080000004', '1998-07-12', 'Soluço', 'LIMPEZA', 'J', '90000000001');
+INSERT INTO funcionario VALUES ('90003000005', '1997-09-30', 'Astrid', 'LIMPEZA', 'P', '90000000001');
+INSERT INTO funcionario VALUES ('90001300006', '1995-11-10', 'Meatlug', 'LIMPEZA', 'J', '90000000002');
+INSERT INTO funcionario VALUES ('90000006707', '1996-05-05', 'Perna-de-peixe', 'LIMPEZA', 'J', '90000000002');
+INSERT INTO funcionario VALUES ('90050000108', '1999-08-08', 'Cabeçaquente', 'LIMPEZA', 'P', '90000000003');
+INSERT INTO funcionario VALUES ('93001237010', '2000-10-01', 'Banguela', 'LIMPEZA', 'S', '91205506009');
+
+
+- Criando 10 inserts inválidos (com seus respectivos motivos):
+-- 1. CPF duplicado
+INSERT INTO funcionario VALUES ('90000000001', '1975-02-01', 'Stoico', 'SUP_LIMPEZA', 'S', NULL);
+
+-- 2. LIMPEZA sem supervisor
+INSERT INTO funcionario VALUES ('90000000011', '2001-01-01', 'Grimmel', 'LIMPEZA', 'J', NULL);
+
+-- 3. Função inválida
+INSERT INTO funcionario VALUES ('90000000012', '1983-06-15', 'Drago Bludvist', 'GUERREIRO', 'S', NULL);
+
+-- 4. Nível inválido
+INSERT INTO funcionario VALUES ('90000000013', '1986-07-07', 'Eret', 'SUP_LIMPEZA', 'X', NULL);
+
+-- 5. Supervisor inexistente
+INSERT INTO funcionario VALUES ('90000000014', '1992-10-20', 'Tempestade', 'LIMPEZA', 'P', '99999999999');
+
+-- 6. Supervisor inexistente mesmo sendo SUP_LIMPEZA
+INSERT INTO funcionario VALUES ('90000000015', '1984-03-03', 'Gancho', 'SUP_LIMPEZA', 'J', '88888888888');
+
+-- 7. Nivel NULL
+INSERT INTO funcionario VALUES ('12345678902', '1991-01-01', 'Cabeçadura', 'LIMPEZA', NULL, '90000000001');
+
+-- 8. Funcao NULL
+INSERT INTO funcionario VALUES ('123456789012', '1991-01-01', 'Cabeçadura', NULL, 'J', '90000000001');
+
+-- 9. Nome NULL
+INSERT INTO funcionario VALUES ('90000000016', '1993-06-06', NULL, 'LIMPEZA', 'J', '90000000001');
+
+-- 10. Data de nascimento NULL
+INSERT INTO funcionario VALUES ('90000000017', NULL, 'Chicote', 'SUP_LIMPEZA', 'P', NULL);
